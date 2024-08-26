@@ -9,6 +9,8 @@ fn int main(String[] args)
 	raylib::init_window(WINDOW_SIZE.x, WINDOW_SIZE.y, "Hello, World!");
 	defer raylib::close_window();
 
+	qoi::benchmark::test();
+
 	// load a QOI image
 	Desc dice;
 	String path = "resources/dice.qoi";
