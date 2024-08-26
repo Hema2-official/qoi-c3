@@ -384,6 +384,7 @@ fn char[]! decode(char[] data, Desc *desc, Channels channels = AUTO)
 // ***        From here on, helper functions and types are defined.        ***
 // ***                                                                     ***
 // ***************************************************************************
+module qoi @private;
 
 // 8-bit opcodes
 const OP_RGB = 0b11111110;
@@ -394,7 +395,7 @@ const OP_DIFF = 0b01;
 const OP_LUMA = 0b10;
 const OP_RUN = 0b11;
 
-struct Header @packed @local
+struct Header @packed
 {
 	uint be_magic;	// magic bytes "qoif"
 	uint be_width;	// image width in pixels (BE)
@@ -405,10 +406,10 @@ struct Header @packed @local
 	char colorspace;	// 0 = sRGB with linear alpha, 1 = all channels linear
 }
 
-const char[*] END_OF_STREAM @local = {0, 0, 0, 0, 0, 0, 0, 1};
+const char[*] END_OF_STREAM = {0, 0, 0, 0, 0, 0, 0, 1};
 
 // inefficient, but it's only run once at a time
-macro @enumcast($Type, raw) @local
+macro @enumcast($Type, raw)
 {
 	foreach (value : $Type.values)
 		if (value.id == raw) return value;
@@ -416,19 +417,19 @@ macro @enumcast($Type, raw) @local
 	return QOIError.INVALID_DATA?;
 }
 
-def Pixel = char[<4>] @local;
-macro char Pixel.hash(Pixel p) @local {
+def Pixel = char[<4>];
+macro char Pixel.hash(Pixel p) {
 	return (p.r * 3 + p.g * 5 + p.b * 7 + p.a * 11) % 64;
 }
 
-struct OpRGB @packed @local
+struct OpRGB @packed
 {
 	char tag;
 	char red;
 	char green;
 	char blue;
 }
-struct OpRGBA @packed @local
+struct OpRGBA @packed
 {
 	char tag;
 	char red;
@@ -436,26 +437,26 @@ struct OpRGBA @packed @local
 	char blue;
 	char alpha;
 }
-bitstruct OpIndex : char @local
+bitstruct OpIndex : char
 {
 	char tag : 6..7;
 	char index : 0..5;
 }
-bitstruct OpDiff : char @local
+bitstruct OpDiff : char
 {
 	char tag : 6..7;
 	char diff_red : 4..5;
 	char diff_green : 2..3;
 	char diff_blue : 0..1;
 }
-bitstruct OpLuma : ushort @local
+bitstruct OpLuma : ushort
 {
 	char tag : 6..7;
 	char diff_green : 0..5;
 	char diff_red_minus_green : 12..15;
 	char diff_blue_minus_green : 8..11;
 }
-bitstruct OpRun : char @local
+bitstruct OpRun : char
 {
 	char tag : 6..7;
 	char run : 0..5;
@@ -463,7 +464,7 @@ bitstruct OpRun : char @local
 
 // Macro used to locate chunks in data buffers.
 // Can be used both for reading and writing.
-macro @extract($Type, char[] data, uint *pos) @local
+macro @extract($Type, char[] data, uint *pos)
 {
 	// slice data, then double cast
 	$Type *chunk = ($Type*)data[*pos : $Type.sizeof].ptr;
