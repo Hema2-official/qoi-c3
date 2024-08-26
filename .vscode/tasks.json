@@ -1,0 +1,9 @@
+{
+    "version": "2.0.0",
+    "tasks": [{
+        "label": "c3_run",
+        "command": "c3c", // Could be any other shell command
+        "args": ["run"],
+        "type": "shell"
+    }]
+}
