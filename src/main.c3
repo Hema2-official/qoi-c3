@@ -6,10 +6,11 @@ const int[<2>] WINDOW_SIZE = {800, 600};
 
 fn int main(String[] args)
 {
+	io::printn("Running benchmark");
+	qoi::benchmark::test_all("resources/dice.qoi");
+	
 	raylib::init_window(WINDOW_SIZE.x, WINDOW_SIZE.y, "Hello, World!");
 	defer raylib::close_window();
-
-	qoi::benchmark::test();
 
 	// load a QOI image
 	Desc dice;

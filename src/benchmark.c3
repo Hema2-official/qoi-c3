@@ -4,11 +4,20 @@ import std::io;
 import std::time;
 
 const RUNS = 100;
-const REPETITIONS = 30;
+const REPETITIONS = 10;
 
-// TODO: Implement a full benchmark suite or idk
+struct BenchmarkResult
+{
+	time::Time avg; // avg time per single run
+	Desc desc;		// descriptor of the image
+}
 
-macro @repeat_test(block, ...)
+fault BenchmarkError
+{
+	FILE_OPEN_FAILED,
+}
+
+macro time::Time @repeat_test(block, ...)
 {
 	time::Time[REPETITIONS] times;
 
@@ -37,42 +46,28 @@ macro @repeat_test(block, ...)
 		total += times[i];
 	}
 
-	// print statistics
-	io::printfn("Average time per %d runs: ", RUNS);
-	io::printfn("%.6f ms", (float)total / REPETITIONS / 1000);
-
-	io::printfn("Minimum time per %d runs: ", RUNS);
-	io::printfn("%.6f ms", (float)min / 1000);
-
-	io::printfn("Minimum time for one run: ");
-	io::printfn("%.6f ms", (float)min / RUNS / 1000);
-
-	io::printn();
+	return total / REPETITIONS / RUNS;
 }
 
 
-fn void test_decode()
+fn BenchmarkResult! test_decode(String file_path)
 {
-	io::printn("Running test: decode");
-
-	String file_path = "resources/dice.qoi";
-
 	@pool() {
 		// create empty descriptor
-		Desc dice;
+		Desc desc;
 
 		// read file
 		char[]! qoi_data = file::load_new(file_path);
 		if (catch qoi_data) {
 			io::printfn("Failed to run test: could not load %s", file_path);
-			return;
+			return BenchmarkError.FILE_OPEN_FAILED?;
 		};
 
 		// run decode test
-		@repeat_test(
+		time::Time avg = @repeat_test(
 			fn void(char[] data, Desc* desc) {
 				// decode the QOI image
-				char[]! decoded = qoi::decode(data, desc, Channels.RGBA);
+				char[]! decoded = qoi::decode(data, desc, Channels.AUTO);
 				if (catch f = decoded)
 				{
 					io::print("Failed to decode: ");
@@ -82,31 +77,32 @@ fn void test_decode()
 				mem::free(decoded);
 			},
 			qoi_data,
-			&dice
+			&desc
 		);
+
+		return {
+			.avg = avg,
+			.desc = desc
+		};
 	};
 }
 
-fn void test_encode()
+fn BenchmarkResult! test_encode(String file_path)
 {
-	io::printn("Running test: encode");
-
-	String file_path = "resources/dice.qoi";
-
 	@pool() {
 		// create empty descriptor
-		Desc dice;
+		Desc desc;
 
 		// load a QOI image
-		char[]! image = qoi::read(file_path, &dice, Channels.RGBA);
+		char[]! image = qoi::read(file_path, &desc, Channels.AUTO);
 		if (catch f = image)
 		{
 			io::printfn("Failed to load %s: %s", file_path, f.nameof);
-			return;
+			return BenchmarkError.FILE_OPEN_FAILED?;
 		}
 
 		// run encode test
-		@repeat_test(
+		time::Time avg = @repeat_test(
 			fn void(char[] data, Desc* desc) {
 				// encode the decoded image
 				char[]! encoded = qoi::encode(data, desc);
@@ -119,97 +115,35 @@ fn void test_encode()
 				mem::free(encoded);
 			},
 			image,
-			&dice
+			&desc
 		);
-	};
 
-	// // encode that same image to a new QOI blob
-	// usz! written = qoi::write("resources/encoder_test_2.qoi", data, &dice);
-	// if (catch f = written)
-	// {
-	// 	io::print("Failed to encode: ");
-	// 	io::printn(f.nameof);
-	// 	continue;
-	// }
-}
-
-fn void test_read()
-{
-	io::printn("Running test: read");
-
-	String file_path = "resources/dice.qoi";
-
-	@pool() {
-		// create empty descriptor
-		Desc dice;
-
-		// run read test
-		@repeat_test(
-			fn void(String path, Desc* desc) {
-				// read the QOI image
-				char[]! data = qoi::read(path, desc, Channels.RGBA);
-				if (catch f = data)
-				{
-					io::print("Failed to read: ");
-					io::printn(f.nameof);
-					return;
-				}
-				mem::free(data);
-			},
-			file_path,
-			&dice
-		);
+		return {
+			.avg = avg,
+			.desc = desc
+		};
 	};
 }
 
-fn void test_write()
+fn void test_all(String file_path)
 {
-	io::printn("Running test: write");
+	BenchmarkResult! decode_result = test_decode(file_path);
+	BenchmarkResult! encode_result = test_encode(file_path);
 
-	String file_path = "resources/dice.qoi";
-	String output_path = "resources/encoder_benchmark.qoi";
-
-	@pool() {
-		// create empty descriptor
-		Desc dice;
-
-		// load a QOI image
-		char[]! image = qoi::read(file_path, &dice, Channels.RGBA);
-		if (catch f = image)
-		{
-			io::printfn("Failed to load %s: %s", file_path, f.nameof);
-			return;
-		}
-
-		// run write test
-		@repeat_test(
-			fn void(char[] data, Desc* desc, String output_path) {
-				// encode the decoded image
-				usz! written = qoi::write(output_path, data, desc);
-				if (catch f = written)
-				{
-					io::print("Failed to write: ");
-					io::printn(f.nameof);
-					return;
-				}
-			},
-			image,
-			&dice,
-			output_path
-		);
-
-		// delete the file
-		if (catch f = file::delete(output_path))
-		{
-			io::printfn("Failed to delete %s: %s", );
-		}
+	if (catch f = decode_result) {
+		io::printfn("Failed to run test: %s", f.nameof);
+		return;
 	};
-}
+	if (catch f = encode_result) {
+		io::printfn("Failed to run test: %s", f.nameof);
+		return;
+	};
 
-fn void test_all()
-{
-	test_decode();
-	test_encode();
-	test_read();
-	test_write();
+	uint pixels = decode_result.desc.width * decode_result.desc.height;
+	float decode_mpps = (float)pixels / (float)decode_result.avg;
+	float encode_mpps = (float)pixels / (float)encode_result.avg;
+
+	io::printfn("%s %dx%d", file_path, decode_result.desc.width, decode_result.desc.height);
+	io::printfn("decode: %.3f ms, %.3f MPPS", (float)decode_result.avg / 1000, decode_mpps);
+	io::printfn("encode: %.3f ms, %.3f MPPS", (float)encode_result.avg / 1000, encode_mpps);
 }
